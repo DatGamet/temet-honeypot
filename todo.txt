@@ -1,0 +1,6 @@
+- On Listen Error returned error nicht -> disallowed intents
+- Hydrate Message.Guild
+- MessageCreate.Member.UserID is not set
+- Member.Roles hydrate
+- Member.User is nil
+- Add Member.Send()

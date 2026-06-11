@@ -1,0 +1,44 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - misspell
+    - staticcheck
+    - unused
+  settings:
+    godot:
+      scope: declarations
+      capital: false
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - godot
+        path: _test\.go
+      - linters:
+          - errcheck
+        text: Error return value of .*(Close|Body.Close).*is not checked
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+      - '.*_test\.go$'
+      - '^test/'
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

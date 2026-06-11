@@ -1,0 +1,106 @@
+package events
+
+import (
+	"context"
+	"log/slog"
+	"temet-honeypot/internal/util"
+	"temet-honeypot/pkg/config"
+	"time"
+
+	"github.com/streame-gg/go-discord-wrapper/api"
+	"github.com/streame-gg/go-discord-wrapper/builder"
+	"github.com/streame-gg/go-discord-wrapper/connection"
+	"github.com/streame-gg/go-discord-wrapper/types/components"
+	"github.com/streame-gg/go-discord-wrapper/types/discord"
+	devents "github.com/streame-gg/go-discord-wrapper/types/events"
+)
+
+func init() {
+	On(devents.EventMessageCreate, func(c *connection.Client, e *devents.MessageCreateEvent) {
+		if e.Author == nil || !e.GuildID.IsValid() || e.GuildID.IsEmpty() {
+			return
+		}
+
+		if e.ChannelID == config.Current.HoneypotChannel {
+			if err := e.Message.Delete(context.Background(), util.Pointer("Message sent in Honeypot channel")); err != nil {
+				slog.Error("failed to delete message in honeypot channel", "err", err)
+				return
+			}
+
+			_, err := c.RestClient.ModifyGuildMember(context.Background(), *e.GuildID, e.Message.Author.ID,
+				api.ModifyGuildMemberParams{
+					CommunicationDisabledUntil: util.Pointer(time.Now().Add(24 * time.Hour * 21).Format(time.RFC3339)),
+				}, &api.ModifyGuildMemberOptions{
+					Reason: "Message sent in Honeypot channel",
+				})
+			if err != nil {
+				slog.Error("failed to timeout user", "err", err)
+			}
+
+			detected := time.Now()
+
+			logContainer := builder.NewContainer().
+				SetAccentColor(0x5865F2).
+				AddComponents(
+					builder.NewTextDisplay().SetContent("# New User detected\n- Detected at: "+discord.Timestamp(detected)+"\n- User: "+e.Author.Mention()).Build(),
+					builder.NewSeparator().SetDivider(true).Build(),
+					builder.NewActionRow().AddComponents(
+						builder.NewButton().
+							SetLabel("Keep Timeout").
+							SetStyle(components.ButtonStyleSecondary).
+							SetCustomID("keep_timeout_mod").
+							Build(),
+						builder.NewButton().
+							SetLabel("Remove Timeout").
+							SetStyle(components.ButtonStyleSecondary).
+							SetCustomID("remove_timeout_mod").
+							Build(),
+					).Build(),
+				).
+				Build()
+
+			if _, err := c.RestClient.CreateMessage(context.Background(), config.Current.HoneypotLogChannel, api.CreateMessageParams{
+				Components: []discord.AnyComponent{logContainer},
+				Flags:      discord.MessageFlagIsComponentsV2,
+			}); err != nil {
+				slog.Error("failed to send message in log channel", "err", err)
+				return
+			}
+
+			dmChannel, err := c.RestClient.CreateDM(context.Background(), e.Message.Author.ID)
+			if err != nil {
+				slog.Error("failed to create dm channel with user", "err", err)
+				return
+			}
+
+			dmContainer := builder.NewContainer().
+				SetAccentColor(0x5865F2).
+				AddComponents(
+					builder.NewTextDisplay().SetContent("# Warning, dear User\nWhat is a honeypot?\nA honeypot is a trap designed to punish hackers/scammers. As soon as a user sends a message in this channel, it will be immediately deleted and the user will be punished (ban, timeout, kick).\n\nWhat's the point of this?\nRecently, you can see more and more of the typical 4 pictures scams. Here, hacked accounts send a message in every channel on public Discords, with one or more images, and/or a link to a fake online casino website or other NSFW links / NSFW Discord servers in all channels. This is very annoying and with this channel we want to prevent it.\n\nWhat happens if I send a message here?\nAs soon as you send a message here, it will be immediately deleted and you will be punished. Depending on the server's settings, you will either be banned, timed out, or kicked. The whole point is to prevent this, so it's best not to let it get that far.\n\nHow can I get unbanned?\nEither you can contact a team member directly, or you can simply get unbanned via the button 'Remove Timeout'. In the very last resort, it is also possible to contact <@754246997266923571> via DM.").Build(),
+					builder.NewSeparator().SetDivider(true).Build(),
+					builder.NewActionRow().AddComponents(
+						builder.NewButton().
+							SetLabel("Remove Timeout").
+							SetCustomID("remove_timeout_user").
+							SetStyle(components.ButtonStyleSecondary).
+							Build(),
+						builder.NewButton().
+							SetLabel("How not to get hacked").
+							SetStyle(components.ButtonStyleLink).
+							SetURL("https://discord.com/safety/360044104071-tips-against-spam-and-hacking").
+							Build(),
+					).Build(),
+				).
+				Build()
+
+			dmChannel.Hydrate(c)
+
+			if _, err := dmChannel.Send(context.Background(), discord.MessageCreateOptions{
+				Components: []discord.AnyComponent{dmContainer},
+				Flags:      discord.MessageFlagIsComponentsV2,
+			}); err != nil {
+				slog.Error("failed to send DM channel", "err", err)
+			}
+		}
+	})
+}
