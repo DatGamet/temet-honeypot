@@ -25,7 +25,7 @@ type Case struct {
 	Resolved        bool               `bson:"resolved"`
 	ResolvedBy      *discord.Snowflake `bson:"resolvedBy"`
 	ResolveDecision *string            `bson:"resolveDecision"`
-	LogMessageID    discord.Snowflake  `json:"logMessageId"`
+	LogMessageID    discord.Snowflake  `bson:"logMessageId"`
 	ResolvedAt      *time.Time         `bson:"resolvedAt"`
 }
 
