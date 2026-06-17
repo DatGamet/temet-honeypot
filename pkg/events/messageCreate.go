@@ -8,6 +8,7 @@ import (
 	"temet-honeypot/pkg/database"
 	"time"
 
+	"github.com/streame-gg/go-discord-wrapper/api"
 	"github.com/streame-gg/go-discord-wrapper/builder"
 	"github.com/streame-gg/go-discord-wrapper/connection"
 	"github.com/streame-gg/go-discord-wrapper/types/components"
@@ -37,7 +38,7 @@ func init() {
 				})
 			if err != nil {
 				slog.Error("failed to timeout user", "err", err)
-				return
+
 			}
 
 			logContainer := builder.NewContainer().
@@ -108,6 +109,47 @@ func init() {
 				Flags:      discord.MessageFlagIsComponentsV2,
 			}); err != nil {
 				slog.Error("failed to send DM channel", "err", err)
+			}
+
+			messages, err := c.RestClient.SearchGuildMessages(context.Background(), *e.GuildID, api.SearchGuildMessagesParams{
+				AuthorID: []discord.Snowflake{e.Author.ID},
+				Limit:    util.Pointer(25),
+			})
+			if err != nil {
+				slog.Error("failed to search guild messages", "err", err)
+				return
+			}
+
+			msgMap := make(map[discord.Snowflake][]discord.Snowflake)
+
+			for _, msg := range messages.Messages {
+				if time.Since(msg[0].CreatedAt()) > 5*time.Minute {
+					continue
+				}
+
+				if _, ok := msgMap[msg[0].ChannelID]; !ok {
+					msgMap[msg[0].ChannelID] = []discord.Snowflake{}
+				}
+				msgMap[msg[0].ChannelID] = append(msgMap[msg[0].ChannelID], msg[0].ID)
+			}
+
+			for channelId, messageIds := range msgMap {
+				if len(messageIds) == 0 {
+					continue
+				}
+
+				if len(messageIds) == 1 {
+					if err := c.DeleteMessage(context.Background(), channelId, messageIds[0], util.Pointer("Message sent by user that was catched by honeypot")); err != nil {
+						slog.Error("failed to delete message in channel", "err", err, "channelId", channelId, "messageId", messageIds[0])
+					}
+					slog.Info("deleted message in channel", "channelId", channelId, "messageId", messageIds[0])
+					continue
+				}
+
+				if err := c.BulkDeleteMessages(context.Background(), channelId, messageIds, util.Pointer("Messages sent by user that was catched by honeypot")); err != nil {
+					slog.Error("failed to bulk delete message in channel", "err", err, "channelId", channelId, "messages", messageIds)
+				}
+				slog.Info("deleted messages in channel", "channelId", channelId, "messageId", messageIds)
 			}
 		}
 	})
