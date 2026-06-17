@@ -56,11 +56,16 @@ func init() {
 				slog.Error("failed to forward message", "err", err)
 			}
 
+			msgLink := ""
+			if forwardMsg != nil {
+				msgLink = discord.MessageLink(config.Current.HoneypotLogChannel, forwardMsg.ID, util.Pointer(config.Current.DevGuild))
+			}
+
 			logContainer := builder.NewContainer().
 				SetAccentColor(0x5865F2).
 				AddComponents(
 					builder.NewTextDisplay().SetContent("# New User detected\n- Message Reference: "+
-						util.InlineIfElse(forwardMsg != nil, discord.MessageLink(config.Current.HoneypotLogChannel, forwardMsg.ID, util.Pointer(config.Current.DevGuild)), "Failed to forward message")+
+						util.InlineIfElse(forwardMsg != nil, msgLink, "Failed to forward message")+
 						"\n- Case ID: `"+e.ID.String()+"`\n- User: "+e.Author.Mention()+"\n- Resolved: No\n- Resolved by: None\n- Resolve Decision: None").Build(),
 					builder.NewSeparator().SetDivider(true).Build(),
 					builder.NewActionRow().AddComponents(
