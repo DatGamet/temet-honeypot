@@ -93,8 +93,8 @@ func (removeTimeoutMod) Handle(c *connection.Client, ev *events.InteractionCreat
 		return
 	}
 
-	if _, err := c.ModifyGuildMember(context.Background(), config.Current.DevGuild, ev.UserID(), discord.MemberEditOptions{
-		CommunicationDisabledUntil: nil,
+	if _, err := c.RestClient.ModifyGuildMember(context.Background(), config.Current.DevGuild, repCase.DiscordUserID, api.ModifyGuildMemberParams{
+		CommunicationDisabledUntil: discord.Null[string](),
 		AuditLogReason:             util.Pointer("User was timed out due to honeypot, resolved by " + ev.UserID().String()),
 	}); err != nil {
 		slog.Error("failed to reply to interaction", "err", err)

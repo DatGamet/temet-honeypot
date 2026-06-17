@@ -93,7 +93,7 @@ func (keepTimeoutMod) Handle(c *connection.Client, ev *events.InteractionCreateE
 	}
 
 	if _, err := ev.Reply(interactions.ReplyOptions{
-		Content: "Done. The timeout was removed.",
+		Content: "Okay. Timeout is being kept.",
 		Flags:   discord.MessageFlagEphemeral,
 	}); err != nil {
 		slog.Error("failed to reply to interaction", "err", err)
@@ -102,7 +102,7 @@ func (keepTimeoutMod) Handle(c *connection.Client, ev *events.InteractionCreateE
 	logContainer := builder.NewContainer().
 		SetAccentColor(0x5865F2).
 		AddComponents(
-			builder.NewTextDisplay().SetContent("# New User detected\n- Case ID: `"+repCase.MongoID+"`\n- User: <@"+repCase.DiscordUserID.String()+">\n- Resolved: Yes\n- Resolved by: <@"+ev.UserID().String()+">\n- Resolve Decision: Removed timeout").Build(),
+			builder.NewTextDisplay().SetContent("# New User detected\n- Case ID: `"+repCase.MongoID+"`\n- User: <@"+repCase.DiscordUserID.String()+">\n- Resolved: Yes\n- Resolved by: <@"+ev.UserID().String()+">\n- Resolve Decision: Kept timeout").Build(),
 			builder.NewSeparator().SetDivider(true).Build(),
 			builder.NewActionRow().AddComponents(
 				builder.NewButton().

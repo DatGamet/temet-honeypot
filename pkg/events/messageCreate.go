@@ -37,6 +37,7 @@ func init() {
 			_, err := c.ModifyGuildMember(context.Background(), *e.GuildID, e.Message.Author.ID,
 				discord.MemberEditOptions{
 					CommunicationDisabledUntil: util.Pointer(time.Now().Add(24 * time.Hour * 21).Format(time.RFC3339)),
+					AuditLogReason:             util.Pointer("detected by sending message in honeypot channel"),
 				})
 			if err != nil {
 				slog.Error("failed to timeout user", "err", err)
