@@ -40,7 +40,6 @@ func init() {
 				})
 			if err != nil {
 				slog.Error("failed to timeout user", "err", err)
-
 			}
 
 			forwardMsg, err := c.CreateMessage(context.Background(), config.Current.HoneypotLogChannel, discord.MessageCreateOptions{
@@ -83,29 +82,25 @@ func init() {
 				).
 				Build()
 
-			if err := e.Message.Delete(context.Background(), util.Pointer("Message sent in Honeypot channel")); err != nil {
-				slog.Error("failed to delete message in honeypot channel", "err", err)
-				return
-			}
-
 			logMessage, err := c.CreateMessage(context.Background(), config.Current.HoneypotLogChannel, discord.MessageCreateOptions{
 				Components: []discord.AnyComponent{logContainer},
 				Flags:      discord.MessageFlagIsComponentsV2,
 			})
 			if err != nil {
 				slog.Error("failed to send message in log channel", "err", err)
-				return
+			}
+
+			if err := e.Message.Delete(context.Background(), util.Pointer("Message sent in Honeypot channel")); err != nil {
+				slog.Error("failed to delete message in honeypot channel", "err", err)
 			}
 
 			if _, err = database.GlobalConnection.Database().Collection("cases").InsertOne(context.Background(), database.NewCase(e.Author.ID, e.ID, logMessage.ID)); err != nil {
 				slog.Error("failed to insert case", "err", err)
-				return
 			}
 
 			dmChannel, err := c.CreateDM(context.Background(), e.Message.Author.ID)
 			if err != nil {
 				slog.Error("failed to create dm channel with user", "err", err)
-				return
 			}
 
 			dmContainer := builder.NewContainer().
