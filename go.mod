@@ -5,7 +5,7 @@ go 1.26.4
 require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lmittmann/tint v1.1.3
-	github.com/streame-gg/go-discord-wrapper v0.2.3
+	github.com/streame-gg/go-discord-wrapper v0.2.4-0.20260617193334-28958271d43a
 	go.mongodb.org/mongo-driver/v2 v2.5.1
 )
 

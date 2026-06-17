@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"temet-honeypot/internal/util"
 	"temet-honeypot/pkg/config"
+	"temet-honeypot/pkg/database"
 	"time"
 
-	"github.com/streame-gg/go-discord-wrapper/api"
 	"github.com/streame-gg/go-discord-wrapper/builder"
 	"github.com/streame-gg/go-discord-wrapper/connection"
 	"github.com/streame-gg/go-discord-wrapper/types/components"
@@ -17,7 +17,11 @@ import (
 
 func init() {
 	On(devents.EventMessageCreate, func(c *connection.Client, e *devents.MessageCreateEvent) {
-		if e.Author == nil || !e.GuildID.IsValid() || e.GuildID.IsEmpty() {
+		if e.Author == nil || !e.GuildID.IsValid() || e.GuildID.IsEmpty() || e.Author.Bot {
+			return
+		}
+		if database.GlobalConnection == nil {
+			slog.Error("database connection is nil")
 			return
 		}
 
@@ -27,22 +31,19 @@ func init() {
 				return
 			}
 
-			_, err := c.RestClient.ModifyGuildMember(context.Background(), *e.GuildID, e.Message.Author.ID,
-				api.ModifyGuildMemberParams{
+			_, err := c.ModifyGuildMember(context.Background(), *e.GuildID, e.Message.Author.ID,
+				discord.MemberEditOptions{
 					CommunicationDisabledUntil: util.Pointer(time.Now().Add(24 * time.Hour * 21).Format(time.RFC3339)),
-				}, &api.ModifyGuildMemberOptions{
-					Reason: "Message sent in Honeypot channel",
 				})
 			if err != nil {
 				slog.Error("failed to timeout user", "err", err)
+				return
 			}
-
-			detected := time.Now()
 
 			logContainer := builder.NewContainer().
 				SetAccentColor(0x5865F2).
 				AddComponents(
-					builder.NewTextDisplay().SetContent("# New User detected\n- Detected at: "+discord.Timestamp(detected)+"\n- User: "+e.Author.Mention()).Build(),
+					builder.NewTextDisplay().SetContent("# New User detected\n- Case ID: `"+e.ID.String()+"`\n- User: "+e.Author.Mention()+"\n- Resolved: No\n- Resolved by: None\n- Resolve Decision: None").Build(),
 					builder.NewSeparator().SetDivider(true).Build(),
 					builder.NewActionRow().AddComponents(
 						builder.NewButton().
@@ -59,15 +60,21 @@ func init() {
 				).
 				Build()
 
-			if _, err := c.RestClient.CreateMessage(context.Background(), config.Current.HoneypotLogChannel, api.CreateMessageParams{
+			logMessage, err := c.CreateMessage(context.Background(), config.Current.HoneypotLogChannel, discord.MessageCreateOptions{
 				Components: []discord.AnyComponent{logContainer},
 				Flags:      discord.MessageFlagIsComponentsV2,
-			}); err != nil {
+			})
+			if err != nil {
 				slog.Error("failed to send message in log channel", "err", err)
 				return
 			}
 
-			dmChannel, err := c.RestClient.CreateDM(context.Background(), e.Message.Author.ID)
+			if _, err = database.GlobalConnection.Database().Collection("cases").InsertOne(context.Background(), database.NewCase(e.Author.ID, e.ID, logMessage.ID)); err != nil {
+				slog.Error("failed to insert case", "err", err)
+				return
+			}
+
+			dmChannel, err := c.CreateDM(context.Background(), e.Message.Author.ID)
 			if err != nil {
 				slog.Error("failed to create dm channel with user", "err", err)
 				return
@@ -76,7 +83,7 @@ func init() {
 			dmContainer := builder.NewContainer().
 				SetAccentColor(0x5865F2).
 				AddComponents(
-					builder.NewTextDisplay().SetContent("# Warning, dear User\nWhat is a honeypot?\nA honeypot is a trap designed to punish hackers/scammers. As soon as a user sends a message in this channel, it will be immediately deleted and the user will be punished (ban, timeout, kick).\n\nWhat's the point of this?\nRecently, you can see more and more of the typical 4 pictures scams. Here, hacked accounts send a message in every channel on public Discords, with one or more images, and/or a link to a fake online casino website or other NSFW links / NSFW Discord servers in all channels. This is very annoying and with this channel we want to prevent it.\n\nWhat happens if I send a message here?\nAs soon as you send a message here, it will be immediately deleted and you will be punished. Depending on the server's settings, you will either be banned, timed out, or kicked. The whole point is to prevent this, so it's best not to let it get that far.\n\nHow can I get unbanned?\nEither you can contact a team member directly, or you can simply get unbanned via the button 'Remove Timeout'. In the very last resort, it is also possible to contact <@754246997266923571> via DM.").Build(),
+					builder.NewTextDisplay().SetContent("# Warning, dear User\n## You sent a message in a honeypot channel.\nWhat is a honeypot?\nA honeypot is a trap designed to punish hackers/scammers. As soon as a user sends a message in this channel, it will be immediately deleted and the user will be punished (ban, timeout, kick).\n\nWhat's the point of this?\nRecently, you can see more and more of the typical 4 pictures scams. Here, hacked accounts send a message in every channel on public Discords, with one or more images, and/or a link to a fake online casino website or other NSFW links / NSFW Discord servers in all channels. This is very annoying and with this channel we want to prevent it.\n\nWhat happens if I send a message here?\nAs soon as you send a message here, it will be immediately deleted and you will be punished. Depending on the server's settings, you will either be banned, timed out, or kicked. The whole point is to prevent this, so it's best not to let it get that far.\n\nHow can I get unbanned?\nEither you can contact a team member directly, or you can simply get unbanned via the button 'Remove Timeout'. In the very last resort, it is also possible to contact <@754246997266923571> via DM.").Build(),
 					builder.NewSeparator().SetDivider(true).Build(),
 					builder.NewActionRow().AddComponents(
 						builder.NewButton().
@@ -93,6 +100,7 @@ func init() {
 				).
 				Build()
 
+			//TEMP: wait until library fixes this
 			dmChannel.Hydrate(c)
 
 			if _, err := dmChannel.Send(context.Background(), discord.MessageCreateOptions{

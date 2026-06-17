@@ -33,6 +33,12 @@ func main() {
 	}
 
 	db, err := database.Connect(context.Background())
+	if err != nil {
+		slog.Error("failed to connect to database", "err", err)
+		os.Exit(1)
+	}
+
+	database.GlobalConnection = db
 
 	b, err := bot.New(token, db)
 	if err != nil {

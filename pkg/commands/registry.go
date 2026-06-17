@@ -6,13 +6,12 @@ import (
 	"sync"
 
 	"github.com/streame-gg/go-discord-wrapper/connection"
-	dcmd "github.com/streame-gg/go-discord-wrapper/types/commands"
 	"github.com/streame-gg/go-discord-wrapper/types/discord"
 	"github.com/streame-gg/go-discord-wrapper/types/events"
 )
 
 type Command interface {
-	Definition() *dcmd.ApplicationCommand
+	Definition() *discord.ApplicationCommand
 	Handle(c *connection.Client, ev *events.InteractionCreateEvent)
 }
 
@@ -51,10 +50,10 @@ func Lookup(name string) (Command, bool) {
 	return c, ok
 }
 
-func Definitions() []*dcmd.ApplicationCommand {
+func Definitions() []*discord.ApplicationCommand {
 	mu.RLock()
 	defer mu.RUnlock()
-	out := make([]*dcmd.ApplicationCommand, 0, len(live))
+	out := make([]*discord.ApplicationCommand, 0, len(live))
 	for _, c := range live {
 		out = append(out, c.Definition())
 	}

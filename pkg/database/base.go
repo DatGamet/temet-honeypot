@@ -5,14 +5,38 @@ import (
 	"os"
 	"time"
 
+	"github.com/streame-gg/go-discord-wrapper/types/discord"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
 )
 
+var GlobalConnection *Connection
+
 type Connection struct {
 	client   *mongo.Client
 	database *mongo.Database
+}
+
+type Case struct {
+	MongoID         string             `bson:"_id"`
+	CreatedAt       time.Time          `bson:"createdAt"`
+	DiscordUserID   discord.Snowflake  `bson:"discordUserId"`
+	Resolved        bool               `bson:"resolved"`
+	ResolvedBy      *discord.Snowflake `bson:"resolvedBy"`
+	ResolveDecision *string            `bson:"resolveDecision"`
+	LogMessageID    discord.Snowflake  `json:"logMessageId"`
+	ResolvedAt      *time.Time         `bson:"resolvedAt"`
+}
+
+func NewCase(discordUserId, messageId, logMessageId discord.Snowflake) *Case {
+	return &Case{
+		CreatedAt:     time.Now(),
+		DiscordUserID: discordUserId,
+		MongoID:       messageId.String(),
+		Resolved:      false,
+		LogMessageID:  logMessageId,
+	}
 }
 
 func (c *Connection) Client() *mongo.Client {

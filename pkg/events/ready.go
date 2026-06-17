@@ -10,7 +10,7 @@ import (
 func init() {
 	On(devents.EventReady, func(c *connection.Client, e *devents.ReadyEvent) {
 		slog.Info("bot ready",
-			slog.String("user", e.User.Username),
+			slog.String("user", e.User.DisplayName()),
 			slog.Int("guilds", len(e.Guilds)),
 		)
 	})
