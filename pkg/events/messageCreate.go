@@ -3,12 +3,12 @@ package events
 import (
 	"context"
 	"log/slog"
+	"temet-honeypot/internal"
 	"temet-honeypot/internal/util"
 	"temet-honeypot/pkg/config"
 	"temet-honeypot/pkg/database"
 	"time"
 
-	"github.com/streame-gg/go-discord-wrapper/api"
 	"github.com/streame-gg/go-discord-wrapper/builder"
 	"github.com/streame-gg/go-discord-wrapper/connection"
 	"github.com/streame-gg/go-discord-wrapper/types/components"
@@ -16,22 +16,24 @@ import (
 	devents "github.com/streame-gg/go-discord-wrapper/types/events"
 )
 
+var msgMap = internal.NewMessageCache()
+
 func init() {
 	On(devents.EventMessageCreate, func(c *connection.Client, e *devents.MessageCreateEvent) {
 		if e.Author == nil || !e.GuildID.IsValid() || e.GuildID.IsEmpty() || e.Author.Bot {
 			return
 		}
+
+		if e.ChannelID != config.Current.HoneypotChannel {
+			msgMap.Add(e.Author.ID, e.ChannelID, e.ID)
+		}
+
 		if database.GlobalConnection == nil {
 			slog.Error("database connection is nil")
 			return
 		}
 
 		if e.ChannelID == config.Current.HoneypotChannel {
-			if err := e.Message.Delete(context.Background(), util.Pointer("Message sent in Honeypot channel")); err != nil {
-				slog.Error("failed to delete message in honeypot channel", "err", err)
-				return
-			}
-
 			_, err := c.ModifyGuildMember(context.Background(), *e.GuildID, e.Message.Author.ID,
 				discord.MemberEditOptions{
 					CommunicationDisabledUntil: util.Pointer(time.Now().Add(24 * time.Hour * 21).Format(time.RFC3339)),
@@ -41,10 +43,25 @@ func init() {
 
 			}
 
+			forwardMsg, err := c.CreateMessage(context.Background(), config.Current.HoneypotLogChannel, discord.MessageCreateOptions{
+				MessageReference: &discord.MessageMessageReference{
+					Type:            util.Pointer(discord.MessageMessageReferenceTypeForward),
+					MessageID:       util.Pointer(e.ID),
+					ChannelID:       util.Pointer(config.Current.HoneypotChannel),
+					GuildID:         util.Pointer(config.Current.DevGuild),
+					FailIfNotExists: util.Pointer(true),
+				},
+			})
+			if err != nil {
+				slog.Error("failed to forward message", "err", err)
+			}
+
 			logContainer := builder.NewContainer().
 				SetAccentColor(0x5865F2).
 				AddComponents(
-					builder.NewTextDisplay().SetContent("# New User detected\n- Case ID: `"+e.ID.String()+"`\n- User: "+e.Author.Mention()+"\n- Resolved: No\n- Resolved by: None\n- Resolve Decision: None").Build(),
+					builder.NewTextDisplay().SetContent("# New User detected\n- Message Reference: "+
+						util.InlineIfElse(forwardMsg != nil, discord.MessageLink(config.Current.HoneypotLogChannel, forwardMsg.ID, util.Pointer(config.Current.DevGuild)), "Failed to forward message")+
+						"\n- Case ID: `"+e.ID.String()+"`\n- User: "+e.Author.Mention()+"\n- Resolved: No\n- Resolved by: None\n- Resolve Decision: None").Build(),
 					builder.NewSeparator().SetDivider(true).Build(),
 					builder.NewActionRow().AddComponents(
 						builder.NewButton().
@@ -60,6 +77,11 @@ func init() {
 					).Build(),
 				).
 				Build()
+
+			if err := e.Message.Delete(context.Background(), util.Pointer("Message sent in Honeypot channel")); err != nil {
+				slog.Error("failed to delete message in honeypot channel", "err", err)
+				return
+			}
 
 			logMessage, err := c.CreateMessage(context.Background(), config.Current.HoneypotLogChannel, discord.MessageCreateOptions{
 				Components: []discord.AnyComponent{logContainer},
@@ -111,29 +133,7 @@ func init() {
 				slog.Error("failed to send DM channel", "err", err)
 			}
 
-			messages, err := c.RestClient.SearchGuildMessages(context.Background(), *e.GuildID, api.SearchGuildMessagesParams{
-				AuthorID: []discord.Snowflake{e.Author.ID},
-				Limit:    util.Pointer(25),
-			})
-			if err != nil {
-				slog.Error("failed to search guild messages", "err", err)
-				return
-			}
-
-			msgMap := make(map[discord.Snowflake][]discord.Snowflake)
-
-			for _, msg := range messages.Messages {
-				if time.Since(msg[0].CreatedAt()) > 5*time.Minute {
-					continue
-				}
-
-				if _, ok := msgMap[msg[0].ChannelID]; !ok {
-					msgMap[msg[0].ChannelID] = []discord.Snowflake{}
-				}
-				msgMap[msg[0].ChannelID] = append(msgMap[msg[0].ChannelID], msg[0].ID)
-			}
-
-			for channelId, messageIds := range msgMap {
+			for channelId, messageIds := range msgMap.Get(e.Author.ID) {
 				if len(messageIds) == 0 {
 					continue
 				}
