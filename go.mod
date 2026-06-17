@@ -9,8 +9,6 @@ require (
 	go.mongodb.org/mongo-driver/v2 v2.5.1
 )
 
-replace github.com/streame-gg/go-discord-wrapper => ../go-discord-wrapper
-
 require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
