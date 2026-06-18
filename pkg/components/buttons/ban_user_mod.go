@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"temet-honeypot/internal/util"
 	"temet-honeypot/pkg/config"
 	"temet-honeypot/pkg/database"
 	"time"
@@ -19,14 +20,16 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
-func init() { Register(keepTimeoutMod{}) }
+func init() { Register(banUserMod{}) }
 
-type keepTimeoutMod struct{}
+type banUserMod struct{}
 
-func (keepTimeoutMod) CustomID() string { return "keep_timeout_mod" }
+func (b banUserMod) CustomID() string {
+	return "ban_user_mod"
+}
 
-func (keepTimeoutMod) Handle(c *connection.Client, ev *events.InteractionCreateEvent) {
-	if !ev.Member.Permissions.Has(discord.PermissionModerateMembers) {
+func (b banUserMod) Handle(c *connection.Client, ev *events.InteractionCreateEvent) {
+	if !ev.Interaction.Member.Permissions.Has(discord.PermissionBanMembers) {
 		if _, err := ev.Reply(interactions.ReplyOptions{
 			Content: "You do not have permission to use this button.",
 			Flags:   discord.MessageFlagEphemeral,
@@ -54,7 +57,7 @@ func (keepTimeoutMod) Handle(c *connection.Client, ev *events.InteractionCreateE
 			"$set": map[string]interface{}{
 				"resolved":        true,
 				"resolvedBy":      ev.Member.UserID,
-				"resolveDecision": "KEPT",
+				"resolveDecision": "BAN",
 				"resolvedAt":      time.Now(),
 			},
 		},
@@ -101,17 +104,23 @@ func (keepTimeoutMod) Handle(c *connection.Client, ev *events.InteractionCreateE
 		return
 	}
 
-	if _, err := ev.Reply(interactions.ReplyOptions{
-		Content: "Okay. Timeout is being kept.",
-		Flags:   discord.MessageFlagEphemeral,
+	if err := ev.Guild.Bans().Create(context.Background(), repCase.DiscordUserID, discord.BanOptions{
+		AuditLogReason: util.Pointer("Banned by " + ev.Member.UserID.String() + "; was detected by honeypot before"),
 	}); err != nil {
-		slog.Error("failed to reply to interaction", "err", err)
+		slog.Error("failed to create ban", "err", err)
+		if _, err := ev.Reply(interactions.ReplyOptions{
+			Content: "Failed to ban user.",
+			Flags:   discord.MessageFlagEphemeral,
+		}); err != nil {
+			slog.Error("failed to reply to interaction", "err", err)
+		}
+		return
 	}
 
 	logContainer := builder.NewContainer().
 		SetAccentColor(0x5865F2).
 		AddComponents(
-			builder.NewTextDisplay().SetContent("# New User detected\n- Case ID: `"+repCase.MongoID+"`\n- User: <@"+repCase.DiscordUserID.String()+">\n- Resolved: Yes\n- Resolved by: <@"+ev.Member.UserID.String()+">\n- Resolve Decision: Kept timeout").Build(),
+			builder.NewTextDisplay().SetContent("# New User detected\n- Case ID: `"+repCase.MongoID+"`\n- User: <@"+repCase.DiscordUserID.String()+">\n- Resolved: Yes\n- Resolved by: <@"+ev.Member.UserID.String()+">\n- Resolve Decision: Ban user").Build(),
 			builder.NewSeparator().SetDivider(true).Build(),
 			builder.NewActionRow().AddComponents(
 				builder.NewButton().
@@ -140,5 +149,12 @@ func (keepTimeoutMod) Handle(c *connection.Client, ev *events.InteractionCreateE
 		Components: []discord.AnyComponent{logContainer},
 	}); err != nil {
 		slog.Error("failed to send log message update due to user untimeout", "err", err)
+	}
+
+	if _, err := ev.Reply(interactions.ReplyOptions{
+		Content: "Done. User was banned.",
+		Flags:   discord.MessageFlagEphemeral,
+	}); err != nil {
+		slog.Error("failed to reply to interaction", "err", err)
 	}
 }

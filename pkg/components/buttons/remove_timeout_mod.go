@@ -27,6 +27,15 @@ type removeTimeoutMod struct{}
 func (removeTimeoutMod) CustomID() string { return "remove_timeout_mod" }
 
 func (removeTimeoutMod) Handle(c *connection.Client, ev *events.InteractionCreateEvent) {
+	if !ev.Member.Permissions.Has(discord.PermissionModerateMembers) {
+		if _, err := ev.Reply(interactions.ReplyOptions{
+			Content: "You do not have permission to use this button.",
+			Flags:   discord.MessageFlagEphemeral,
+		}); err != nil {
+			slog.Error("failed to reply to interaction", "err", err)
+		}
+	}
+
 	if database.GlobalConnection == nil {
 		if _, err := ev.Reply(interactions.ReplyOptions{
 			Content: "An error occurred. Please try again later or contact <@754246997266923571>.",
@@ -45,7 +54,7 @@ func (removeTimeoutMod) Handle(c *connection.Client, ev *events.InteractionCreat
 		map[string]interface{}{
 			"$set": map[string]interface{}{
 				"resolved":        true,
-				"resolvedBy":      ev.UserID().String(),
+				"resolvedBy":      ev.Member.UserID,
 				"resolveDecision": "REMOVED",
 				"resolvedAt":      time.Now(),
 			},
@@ -95,7 +104,7 @@ func (removeTimeoutMod) Handle(c *connection.Client, ev *events.InteractionCreat
 
 	if _, err := c.RestClient.ModifyGuildMember(context.Background(), config.Current.DevGuild, repCase.DiscordUserID, api.ModifyGuildMemberParams{
 		CommunicationDisabledUntil: discord.Null[string](),
-		AuditLogReason:             util.Pointer("User was timed out due to honeypot, resolved by " + ev.UserID().String()),
+		AuditLogReason:             util.Pointer("User was timed out due to honeypot, resolved by " + ev.Member.UserID.String()),
 	}); err != nil {
 		slog.Error("failed to reply to interaction", "err", err)
 		if _, err := ev.Reply(interactions.ReplyOptions{
@@ -117,7 +126,7 @@ func (removeTimeoutMod) Handle(c *connection.Client, ev *events.InteractionCreat
 	logContainer := builder.NewContainer().
 		SetAccentColor(0x5865F2).
 		AddComponents(
-			builder.NewTextDisplay().SetContent("# New User detected\n- Case ID: `"+repCase.MongoID+"`\n- User: <@"+repCase.DiscordUserID.String()+">\n- Resolved: Yes\n- Resolved by: <@"+ev.UserID().String()+">\n- Resolve Decision: Removed timeout").Build(),
+			builder.NewTextDisplay().SetContent("# New User detected\n- Case ID: `"+repCase.MongoID+"`\n- User: <@"+repCase.DiscordUserID.String()+">\n- Resolved: Yes\n- Resolved by: <@"+ev.Member.UserID.String()+">\n- Resolve Decision: Removed timeout").Build(),
 			builder.NewSeparator().SetDivider(true).Build(),
 			builder.NewActionRow().AddComponents(
 				builder.NewButton().
@@ -131,6 +140,12 @@ func (removeTimeoutMod) Handle(c *connection.Client, ev *events.InteractionCreat
 					SetStyle(components.ButtonStyleSecondary).
 					SetCustomID("remove_timeout_mod").
 					SetDisabled(true).
+					Build(),
+				builder.NewButton().
+					SetLabel("Ban User").
+					SetStyle(components.ButtonStyleDanger).
+					SetDisabled(true).
+					SetCustomID("ban_user_mod").
 					Build(),
 			).Build(),
 		).

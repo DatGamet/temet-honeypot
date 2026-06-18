@@ -40,13 +40,13 @@ func (removeTimeoutUser) Handle(c *connection.Client, ev *events.InteractionCrea
 	reportCase := database.GlobalConnection.Database().Collection("cases").FindOneAndUpdate(
 		context.Background(),
 		bson.M{
-			"discordUserId": ev.UserID(),
+			"discordUserId": ev.Member.UserID,
 			"resolved":      false,
 		},
 		map[string]interface{}{
 			"$set": map[string]interface{}{
 				"resolved":        true,
-				"resolvedBy":      ev.UserID().String(),
+				"resolvedBy":      ev.Member.UserID,
 				"resolveDecision": "REMOVED",
 				"resolvedAt":      time.Now(),
 			},
@@ -116,6 +116,12 @@ func (removeTimeoutUser) Handle(c *connection.Client, ev *events.InteractionCrea
 					SetStyle(components.ButtonStyleSecondary).
 					SetCustomID("remove_timeout_mod").
 					SetDisabled(true).
+					Build(),
+				builder.NewButton().
+					SetLabel("Ban User").
+					SetStyle(components.ButtonStyleDanger).
+					SetDisabled(true).
+					SetCustomID("ban_user_mod").
 					Build(),
 			).Build(),
 		).

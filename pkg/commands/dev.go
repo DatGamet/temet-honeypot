@@ -53,7 +53,7 @@ func (dev) Definition() *discord.ApplicationCommand {
 }
 
 func (dev) Handle(c *connection.Client, ev *events.InteractionCreateEvent) {
-	if !config.Current.IsOwner(ev.UserID()) {
+	if !config.Current.IsOwner(ev.Member.UserID) {
 		_, _ = ev.Reply(interactions.ReplyOptions{
 			Content: "⛔ This command is owner-only.",
 			Flags:   discord.MessageFlagEphemeral,

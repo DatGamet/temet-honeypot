@@ -79,6 +79,11 @@ func init() {
 							SetStyle(components.ButtonStyleSecondary).
 							SetCustomID("remove_timeout_mod").
 							Build(),
+						builder.NewButton().
+							SetLabel("Ban User").
+							SetStyle(components.ButtonStyleDanger).
+							SetCustomID("ban_user_mod").
+							Build(),
 					).Build(),
 				).
 				Build()
@@ -107,7 +112,7 @@ func init() {
 			dmContainer := builder.NewContainer().
 				SetAccentColor(0x5865F2).
 				AddComponents(
-					builder.NewTextDisplay().SetContent("# Warning, dear User\n## You sent a message in a honeypot channel.\nWhat is a honeypot?\nA honeypot is a trap designed to punish hackers/scammers. As soon as a user sends a message in this channel, it will be immediately deleted and the user will be punished (ban, timeout, kick).\n\nWhat's the point of this?\nRecently, you can see more and more of the typical 4 pictures scams. Here, hacked accounts send a message in every channel on public Discords, with one or more images, and/or a link to a fake online casino website or other NSFW links / NSFW Discord servers in all channels. This is very annoying and with this channel we want to prevent it.\n\nWhat happens if I send a message here?\nAs soon as you send a message here, it will be immediately deleted and you will be punished. Depending on the server's settings, you will either be banned, timed out, or kicked. The whole point is to prevent this, so it's best not to let it get that far.\n\nHow can I get unbanned?\nEither you can contact a team member directly, or you can simply get unbanned via the button 'Remove Timeout'. In the very last resort, it is also possible to contact <@754246997266923571> via DM.").Build(),
+					builder.NewTextDisplay().SetContent("# Warning, dear User\n## You sent a message in a honeypot channel.\n-# Note: If you were already banned by some moderator, send a friend request to D_Gamet and send the following message after the friend request was accepted:\n```\nHello, I was banned from Temet's cord. Case ID is "+e.ID.String()+", my account isn't hacked anymore, I need an unban, please.```\nWhat is a honeypot?\nA honeypot is a trap designed to punish hackers/scammers. As soon as a user sends a message in this channel, it will be immediately deleted and the user will be punished (ban, timeout, kick).\n\nWhat's the point of this?\nRecently, you can see more and more of the typical 4 pictures scams. Here, hacked accounts send a message in every channel on public Discords, with one or more images, and/or a link to a fake online casino website or other NSFW links / NSFW Discord servers in all channels. This is very annoying and with this channel we want to prevent it.\n\nWhat happens if I send a message here?\nAs soon as you send a message here, it will be immediately deleted and you will be punished. Depending on the server's settings, you will either be banned, timed out, or kicked. The whole point is to prevent this, so it's best not to let it get that far.\n\nHow can I get unbanned?\nEither you can contact a team member directly, or you can simply get unbanned via the button 'Remove Timeout'. In the very last resort, it is also possible to contact <@754246997266923571> via DM.").Build(),
 					builder.NewSeparator().SetDivider(true).Build(),
 					builder.NewActionRow().AddComponents(
 						builder.NewButton().
